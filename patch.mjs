@@ -4,7 +4,7 @@ import fs from 'node:fs';
  * Remove o plugin do Cloudflare do vite.config.ts.
  *
  * Por que: com ele, o SSR do bolt roda dentro do workerd, e o app le
- * "context.cloudflare.env" Ã¢ÂÂ que o "vite preview" nao popula com o env do
+ * "context.cloudflare.env" ÃÂ¢ÃÂÃÂ que o "vite preview" nao popula com o env do
  * container. Sem o plugin, o SSR roda em Node, "process.env" funciona e todas
  * as variaveis (OPENAI_LIKE_API_BASE_URL, OPENAI_LIKE_API_KEY, ...) chegam ao
  * provedor sem depender do cookie do navegador.
@@ -72,3 +72,29 @@ if (!utilsRe.test(utilsSrc)) {
 utilsSrc = utilsSrc.replace(utilsRe, "(dirent.content ?? '')$1.split(");
 fs.writeFileSync(utilsFile, utilsSrc);
 console.log('PATCH_OK: guarda para content undefined em createFilesContext');
+
+
+/*
+ * Fix: chat quebra com "Cannot read properties of undefined (reading 'split')"
+ * dentro do ai@7 (stream-language-model-call: resolvedModel.provider.split('.')).
+ *
+ * withAgentStreamDeadlines faz wrapLanguageModel() e espalha o resultado com
+ * "...normalized"; o spread perde o campo "provider" do modelo, e o SDK nao
+ * consegue derivar o provider -> TypeError em TODOS os provedores.
+ */
+const agentFile = 'app/lib/.server/llm/agent-stream.ts';
+let agentSrc = fs.readFileSync(agentFile, 'utf8');
+const agentMarker = 'const normalized = wrapLanguageModel({ model, middleware: [] });';
+if (!agentSrc.includes(agentMarker)) {
+  console.error('PATCH_FAILED: wrapLanguageModel em agent-stream.ts nao encontrado');
+  process.exit(1);
+}
+agentSrc = agentSrc.replace(
+  agentMarker,
+  agentMarker +
+    "\n\n  // preserva identidade do modelo (o spread abaixo perde estes campos)" +
+    "\n  (normalized as any).provider = (model as any)?.provider;" +
+    "\n  (normalized as any).modelId = (model as any)?.modelId;",
+);
+fs.writeFileSync(agentFile, agentSrc);
+console.log('PATCH_OK: provider/modelId preservados em withAgentStreamDeadlines');
