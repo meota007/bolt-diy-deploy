@@ -11,18 +11,25 @@ import fs from 'node:fs';
  */
 const file = 'vite.config.ts';
 let src = fs.readFileSync(file, 'utf8');
-
 const before = src;
-src = src.replace(/^import\s*\{\s*cloudflare\s*\}\s*from\s*'@cloudflare\/vite-plugin';?\s*\n/m, '');
-src = src.replace(/\n\s*config\.mode\s*!==\s*'test'\s*&&\s*cloudflare\(\{[^}]*\}\),?/m, '');
-src = src.replace(/\n\s*cloudflare\(\{[^}]*\}\),?/m, '');
+
+// 1) import { cloudflare } from '@cloudflare/vite-plugin';
+src = src.replace(/^[ \t]*import\s*\{[^}]*\bcloudflare\b[^}]*\}\s*from\s*['"]@cloudflare\/vite-plugin['"];?[ \t]*\r?\n/m, '');
+
+// 2) a entrada do plugin na lista (aceita chaves aninhadas)
+src = src.replace(/[ \t]*config\.mode\s*!==\s*['"]test['"]\s*&&\s*cloudflare\([\s\S]*?\)\s*,?[ \t]*\r?\n/, '');
+src = src.replace(/[ \t]*cloudflare\(\{[^\n]*?\}\)\s*,?[ \t]*\r?\n/, '');
 
 if (src === before) {
   console.error('PATCH_FAILED: nenhuma ocorrencia do plugin cloudflare encontrada em vite.config.ts');
   process.exit(1);
 }
-if (src.includes('cloudflare(')) {
+if (/cloudflare\(/.test(src)) {
   console.error('PATCH_FAILED: ainda existe chamada cloudflare() em vite.config.ts');
+  process.exit(1);
+}
+if (/from\s*['"]@cloudflare\/vite-plugin['"]/.test(src)) {
+  console.error('PATCH_FAILED: import do plugin cloudflare ainda presente');
   process.exit(1);
 }
 
