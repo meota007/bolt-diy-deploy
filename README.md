@@ -4,7 +4,7 @@ Deploy do [bolt.diy](https://github.com/stackblitz-labs/bolt.diy) com **OpenCode
 
 ## Por que este repo existe
 
-Três correções em relação ao Dockerfile oficial, todas necessárias para o chat funcionar:
+Correções necessárias para o chat funcionar, todas já aplicadas aqui:
 
 1. **Não roda `pnpm prune --prod`** — o `dockerstart` oficial chama `vite preview` e `vite` é
    devDependency; a imagem publicada morre com `sh: 1: vite: not found` (issue
@@ -19,12 +19,23 @@ Três correções em relação ao Dockerfile oficial, todas necessárias para o 
 O upstream é **clonado no build** (`ARG UPSTREAM_REF=main`): não há fork para sincronizar — para
 atualizar, redeploye.
 
+## Proxy (`proxy/`)
+
+A rota **Go** do OpenCode exige `x-opencode-session` em toda chamada de chat e só aceita
+`tool_choice: "auto"`. O provedor "OpenAI-Like" do bolt não envia header e manda `"none"` em modo
+discuss — por isso o proxy existe. Ele:
+
+- injeta `x-opencode-session`, `x-opencode-client` e `User-Agent` próprios;
+- normaliza `tool_choice` (remove qualquer valor diferente de `"auto"`);
+- repassa só `/v1/models` e `/v1/chat/completions`, exigindo `Authorization`;
+- expõe `/v1/_hits` com contador e últimos erros (diagnóstico).
+
 ## Arquivos
 
 | Arquivo | Papel |
 |---|---|
 | `Dockerfile` | app: clona upstream, aplica patch, builda, sobe com `react-router-serve` |
-| `patch.mjs` | as 3 correções acima |
+| `patch.mjs` | as correções do app (Cloudflare, provider/modelId, content) |
 | `proxy/` | proxy do OpenCode Go (`node:22-alpine`, código próprio) |
 | `docker-compose.yml` + `.env.example` | subir tudo fora do EasyPanel |
 
