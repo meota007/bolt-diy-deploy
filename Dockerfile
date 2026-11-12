@@ -21,7 +21,9 @@ RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 WORKDIR /app
 
-RUN git clone --depth 1 --branch "${UPSTREAM_REF}" "${UPSTREAM_REPO}" .
+RUN git clone --depth 1 --branch "${UPSTREAM_REF}" "${UPSTREAM_REPO}" . \
+ && git rev-parse HEAD > /app/upstream-commit.txt \
+ && echo "upstream: $(cat /app/upstream-commit.txt) (${UPSTREAM_REF})"
 
 COPY patch.mjs /app/patch.mjs
 RUN node /app/patch.mjs
@@ -29,6 +31,9 @@ RUN node /app/patch.mjs
 RUN pnpm install --frozen-lockfile --prod=false
 RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm run build
 RUN pnpm add --save @react-router/serve@^8.4.0
+
+# Marcador de versao: GET /deploy-version.txt mostra o commit do upstream que esta no ar.
+RUN cp /app/upstream-commit.txt build/client/deploy-version.txt
 
 ENV NODE_ENV=production \
     PORT=5173 \
