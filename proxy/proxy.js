@@ -5,9 +5,13 @@
  * (qualquer id serve) + identificacao de cliente em TODA chamada de chat, e o
  * provedor "OpenAI-Like" do bolt nao envia headers customizados.
  *
+ * Normalizacao: o upstream so aceita tool_choice: "auto". O bolt manda "none"
+ * (modo discuss) ou named choices, e a chamada volta 400 invalid_request_error.
+ * Aqui qualquer tool_choice diferente de "auto" e removido antes do repasse.
+ *
  * Rotas:
  *   GET  /v1/models            -> repassa para <upstream>/models
- *   POST /v1/chat/completions  -> repassa para <upstream>/chat/completions
+ *   POST /v1/chat/completions  -> normaliza tool_choice e repassa
  *   GET  /v1/_hits             -> diagnostico (contador + ultimos erros)
  */
 const http = require('node:http');
@@ -23,6 +27,24 @@ async function readBody(req) {
   const chunks = [];
   for await (const c of req) chunks.push(c);
   return Buffer.concat(chunks);
+}
+
+/** O upstream so aceita "auto"; remove qualquer outro valor (string ou objeto). */
+function normalizeToolChoice(buf) {
+  if (!buf || !buf.length) return buf;
+  let payload;
+  try {
+    payload = JSON.parse(buf.toString('utf8'));
+  } catch {
+    return buf;
+  }
+  if (!payload || typeof payload !== 'object' || !('tool_choice' in payload)) return buf;
+  if (payload.tool_choice === 'auto') return buf;
+
+  const previous = payload.tool_choice;
+  delete payload.tool_choice;
+  stats.hits.push({ t: Date.now(), path: '/v1/chat/completions', toolChoiceFixed: previous });
+  return Buffer.from(JSON.stringify(payload), 'utf8');
 }
 
 const server = http.createServer(async (req, res) => {
@@ -53,7 +75,7 @@ const server = http.createServer(async (req, res) => {
       authorization: auth,
       'content-type': req.headers['content-type'] || 'application/json',
       accept: req.headers.accept || 'application/json',
-      'user-agent': 'bolt-diy-opencode-go/1.0',
+      'user-agent': 'bolt-diy-opencode-go/1.1',
       'x-opencode-client': 'bolt-diy',
       'x-opencode-session': SESSION,
     };
@@ -61,7 +83,7 @@ const server = http.createServer(async (req, res) => {
     let body;
 
     if (!(req.method === 'GET' || req.method === 'HEAD')) {
-      body = await readBody(req);
+      body = normalizeToolChoice(await readBody(req));
       headers['content-length'] = String(body.length);
     }
 
