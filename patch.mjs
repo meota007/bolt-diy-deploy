@@ -4,7 +4,7 @@ import fs from 'node:fs';
  * Remove o plugin do Cloudflare do vite.config.ts.
  *
  * Por que: com ele, o SSR do bolt roda dentro do workerd, e o app le
- * "context.cloudflare.env" â que o "vite preview" nao popula com o env do
+ * "context.cloudflare.env" Ã¢ÂÂ que o "vite preview" nao popula com o env do
  * container. Sem o plugin, o SSR roda em Node, "process.env" funciona e todas
  * as variaveis (OPENAI_LIKE_API_BASE_URL, OPENAI_LIKE_API_KEY, ...) chegam ao
  * provedor sem depender do cookie do navegador.
@@ -51,3 +51,24 @@ errSrc = errSrc.replace(
 );
 fs.writeFileSync(errFile, errSrc);
 console.log('PATCH_OK: log de erro com mensagem + stack');
+
+
+/*
+ * Fix: crash quando um arquivo do projeto vem sem "content".
+ *
+ * app/lib/.server/llm/utils.ts faz "dirent.content.split('\n')" em
+ * createFilesContext; se qualquer entrada for { type: 'file' } sem content
+ * (binario, pasta, arquivo ainda nao carregado), o chat inteiro estoura com
+ * "TypeError: Cannot read properties of undefined (reading 'split')" e o app
+ * mostra apenas "Custom error: The AI provider request failed".
+ */
+const utilsFile = 'app/lib/.server/llm/utils.ts';
+let utilsSrc = fs.readFileSync(utilsFile, 'utf8');
+const utilsRe = /dirent\.content(\s*)\.split\(/;
+if (!utilsRe.test(utilsSrc)) {
+  console.error('PATCH_FAILED: padrao dirent.content.split nao encontrado');
+  process.exit(1);
+}
+utilsSrc = utilsSrc.replace(utilsRe, "(dirent.content ?? '')$1.split(");
+fs.writeFileSync(utilsFile, utilsSrc);
+console.log('PATCH_OK: guarda para content undefined em createFilesContext');
