@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verificacao do deploy do Bolt + leitura do diagnostico do proxy. Somente leitura.
+# Verificacao do deploy do Bolt + diagnostico do proxy. Somente leitura.
 # Uso: ./scripts/check.sh [APP_URL] [PROXY_URL]
 set -u
 
@@ -9,6 +9,7 @@ PROXY="${2:-https://3-tst-opencode-go.b3mcko.easypanel.host}"
 code() { curl -s -o /dev/null -w '%{http_code}' --max-time 25 "$1"; }
 
 echo "app        : $(code "$APP/")"
+echo "versao     : $(curl -s --max-time 20 "$APP/deploy-version.txt" | cut -c1-12)  (commit do upstream)"
 
 json=$(curl -s --max-time 25 "$APP/api/models/OpenAILike" || true)
 count=$(printf '%s' "$json" | grep -o '"name"' | wc -l | tr -d ' ')
@@ -30,4 +31,4 @@ case "$hits" in
 esac
 
 echo
-echo "Esperado: app 200, modelos 30, proxy sem erros."
+echo "Esperado: app 200, versao preenchida, modelos 30, proxy sem erros."
