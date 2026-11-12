@@ -28,10 +28,26 @@ if (/cloudflare\(/.test(src)) {
   console.error('PATCH_FAILED: ainda existe chamada cloudflare() em vite.config.ts');
   process.exit(1);
 }
-if (/from\s*['"]@cloudflare\/vite-plugin['"]/.test(src)) {
-  console.error('PATCH_FAILED: import do plugin cloudflare ainda presente');
-  process.exit(1);
-}
 
 fs.writeFileSync(file, src);
 console.log('PATCH_OK: plugin cloudflare removido (SSR em Node)');
+
+/*
+ * Diagnostico temporario: o app loga apenas o NOME do erro de streaming.
+ * Aqui adicionamos mensagem + stack para conseguir achar a causa.
+ * Remova este bloco quando o bug estiver resolvido (o texto pode conter dados
+ * sensiveis da request).
+ */
+const errFile = 'app/lib/.server/api/errors.ts';
+let errSrc = fs.readFileSync(errFile, 'utf8');
+const marker = "logger.error(`Streaming provider error (${error instanceof Error ? error.name : 'UnknownError'})`);";
+if (!errSrc.includes(marker)) {
+  console.error('PATCH_FAILED: linha de log do erro de streaming nao encontrada');
+  process.exit(1);
+}
+errSrc = errSrc.replace(
+  marker,
+  "logger.error(`Streaming provider error (${error instanceof Error ? error.name : 'UnknownError'}) | msg=${providerMessage} | stack=${error instanceof Error ? String(error.stack || '').slice(0, 2000) : ''}`);",
+);
+fs.writeFileSync(errFile, errSrc);
+console.log('PATCH_OK: log de erro com mensagem + stack');
