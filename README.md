@@ -82,3 +82,20 @@ Chat deve responder com `Tokens: ...` usando o provedor **OpenAI-Like**.
 
 Com API key `oc_sk_...` o mesmo credencial serve para Go (assinatura) e zen (pay-per-use). Aqui
 usamos **Go** (`/zen/go/v1`), que exige `x-opencode-session` — por isso o proxy.
+
+## Atualizar o upstream
+
+**Não há fork para sincronizar** — o upstream é clonado no build. Atualizar = redeployar:
+
+1. EasyPanel → **Deploy** com *force rebuild* (ou `docker compose build --no-cache bolt && docker compose up -d`)
+2. Conferir a versão que entrou:
+   ```bash
+   curl -s https://<app>/deploy-version.txt   # commit do upstream no ar
+   ```
+3. Rodar `scripts/check.sh` e mandar uma mensagem no chat
+
+**Se o build falhar com `PATCH_FAILED`**: o upstream mudou o trecho que corrigimos — ajuste o
+`patch.mjs` e rebuild. (Falhar no build é melhor que subir com a correção ausente.)
+
+**Rollback / build reproduzível**: troque `ARG UPSTREAM_REF=main` por um commit/tag e redeploye.
+Depois de estabilizar, fixar o commit é o modo recomendado.
