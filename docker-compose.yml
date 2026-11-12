@@ -1,0 +1,42 @@
+# Bolt (bolt.diy) + proxy do OpenCode Go
+#
+#   1. cp .env.example .env   (preencha OPENCODE_API_KEY)
+#   2. docker compose up -d --build
+#   3. proxy reverso com TLS na frente da porta 5173
+#
+# Atualizar o bolt.diy (clona o upstream no build):
+#   docker compose build --no-cache bolt && docker compose up -d
+
+services:
+  proxy:
+    build: ./proxy
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      UPSTREAM: "${UPSTREAM:-https://opencode.ai/zen/go/v1}"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/v1/_hits"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  bolt:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      proxy:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5173
+      HOST: 0.0.0.0
+      RUNNING_IN_DOCKER: "true"
+      TZ: "${TZ:-America/Sao_Paulo}"
+      OPENAI_LIKE_API_BASE_URL: "${OPENAI_LIKE_API_BASE_URL:-http://proxy:8080/v1}"
+      OPENAI_LIKE_API_KEY: "${OPENCODE_API_KEY}"
+      OPENAI_LIKE_API_MODELS: "${OPENAI_LIKE_API_MODELS:-deepseek-v4.1-flash:200000;glm-5.3-flash:200000}"
+    ports:
+      - "5173:5173"
