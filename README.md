@@ -72,7 +72,7 @@ TZ=America/Sao_Paulo
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" https://<app>/
-curl -s https://<app>/api/models/OpenAILike | head -c 200   # 30 modelos, sem cookie
+curl -s https://<app>/api/models/OpenAILike | head -c 200   # lista de modelos do Go (sem cookie)
 curl -s https://<proxy>/v1/_hits                             # hits + errors
 ```
 
